@@ -55,6 +55,19 @@ st.markdown("""
         border: 1px solid rgba(16, 185, 129, 0.25);
     }
 
+    /* Voice Executive Briefing Box */
+    .voice-briefing-box {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(15, 23, 42, 0.7) 100%);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 25px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.88rem;
+        color: #93C5FD;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
     /* Stat Typography */
     .kpi-title {
         font-family: 'JetBrains Mono', monospace;
@@ -147,7 +160,6 @@ def load_telemetry_stream():
     np.random.seed(42)
     n_points = 3500 
     
-    # Global maritime hubs & chokepoints
     lat_clusters = np.random.choice(
         [5.5, 27.0, 9.1, 50.0, 33.7, 15.0, 35.9], 
         size=n_points, p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
@@ -174,7 +186,6 @@ def load_telemetry_stream():
         'is_chokepoint': [('Chok' in e or 'Anomaly' in e or 'Delay' in e) for e in entities]
     })
 
-# Load base data
 data = load_telemetry_stream()
 
 # ==========================================
@@ -198,12 +209,10 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("<div style='font-family: \"JetBrains Mono\"; font-size: 0.7rem; color: #64748B; margin-bottom: 12px;'>LETHAL PITCH CONTROLS</div>", unsafe_allow_html=True)
     
-    # LETHAL FEATURE 1: DISRUPTION SIMULATOR
     simulate_anomaly = st.toggle("⚠️ Simulate Weather Anomaly", value=False)
     
     if simulate_anomaly:
         st.error("CRITICAL: Category 4 Typhoon simulated in South China Sea. Rerouting protocols engaged.")
-        # Inject 800 massive red data points into the South China Sea
         anomaly_lats = 15.0 + np.random.normal(0, 1.5, 800)
         anomaly_lons = 115.0 + np.random.normal(0, 1.5, 800)
         anomaly_df = pd.DataFrame({
@@ -241,11 +250,7 @@ if screen == "Fleet Operations":
         
     with col2:
         choke_count = int(data['is_chokepoint'].sum() / 8)
-        if simulate_anomaly:
-            badge_html = '<div class="kpi-badge badge-red"><span class="pulse-dot red"></span>Typhoon Detected</div>'
-        else:
-            badge_html = '<div class="kpi-badge badge-amber">Standard Congestion</div>'
-            
+        badge_html = '<div class="kpi-badge badge-red"><span class="pulse-dot red"></span>Typhoon Detected</div>' if simulate_anomaly else '<div class="kpi-badge badge-amber">Standard Congestion</div>'
         st.markdown(f"""
             <div class="glass-card">
                 <div class="kpi-title">Active Bottlenecks</div>
@@ -276,20 +281,20 @@ if screen == "Fleet Operations":
     
     with c_map:
         st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density Elevators (3D View)</div>", unsafe_allow_html=True)
-        # Center map on South China Sea if anomaly is active, else standard view
-        start_lat, start_lon = (12.0, 110.0) if simulate_anomaly else (15.0, 60.0)
+        start_lat, start_lon = (12.0, 110.0) if simulate_anomaly else (20.0, 15.0)
+        zoom_level = 2.2 if not simulate_anomaly else 3.5
         
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            initial_view_state=pdk.ViewState(latitude=start_lat, longitude=start_lon, zoom=2.5, pitch=50, bearing=-10),
+            initial_view_state=pdk.ViewState(latitude=start_lat, longitude=start_lon, zoom=zoom_level, pitch=45, bearing=0),
             layers=[
                 pdk.Layer(
                     'HexagonLayer',
                     data=data,
                     get_position='[longitude, latitude]',
-                    radius=45000,
-                    elevation_scale=75,
-                    elevation_range=[0, 4000],
+                    radius=55000,
+                    elevation_scale=60,
+                    elevation_range=[0, 3000],
                     pickable=True,
                     extruded=True,
                     get_fill_color="[16, 185, 129, 160]"
@@ -299,38 +304,30 @@ if screen == "Fleet Operations":
                     data=data[data['is_chokepoint']],
                     get_position='[longitude, latitude]',
                     get_color='[239, 68, 68, 220]' if simulate_anomaly else '[245, 158, 11, 200]',
-                    get_radius=55000,
+                    get_radius=60000,
                     pickable=True
                 )
             ],
             tooltip={"text": "Vessel Cluster Density"}
         ))
 
-    # LETHAL FEATURE 2: AUTOMATED DISPATCH LOG
     with c_term:
         st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Autonomous Dispatch Logic</div>", unsafe_allow_html=True)
-        
         now = datetime.now()
-        t1 = (now - timedelta(seconds=12)).strftime("%H:%M:%S")
-        t2 = (now - timedelta(seconds=45)).strftime("%H:%M:%S")
-        t3 = (now - timedelta(minutes=2)).strftime("%H:%M:%S")
-        t4 = (now - timedelta(minutes=4)).strftime("%H:%M:%S")
+        t1, t2, t3, t4 = (now - timedelta(seconds=12)).strftime("%H:%M:%S"), (now - timedelta(seconds=45)).strftime("%H:%M:%S"), (now - timedelta(minutes=2)).strftime("%H:%M:%S"), (now - timedelta(minutes=4)).strftime("%H:%M:%S")
         
-        if simulate_anomaly:
-            logs = f"""
-            <div><span class="term-time">[{t1}]</span> <span class="term-crit">[CRITICAL]</span> TYPHOON PRESSURE DROP IN SEC-4</div>
-            <div><span class="term-time">[{t2}]</span> <span class="term-sys">[SYS]</span> HALTING AIS LEGACY ROUTES IN ZONE</div>
-            <div><span class="term-time">[{t3}]</span> <span style="color:#10B981;">[SUCCESS]</span> AUTONOMOUS REROUTE: 42 VESSELS BYPASSED</div>
-            <div><span class="term-time">[{t4}]</span> <span class="term-warn">[WARN]</span> RECALCULATING FUEL BURN CURVES...</div>
-            """
-        else:
-            logs = f"""
-            <div><span class="term-time">[{t1}]</span> <span class="term-sys">[SYS]</span> INGESTING BIGQUERY TELEMETRY (3,500 ROWS)</div>
-            <div><span class="term-time">[{t2}]</span> <span style="color:#10B981;">[SUCCESS]</span> PACIFIC CHOKEPOINT CLEAR</div>
-            <div><span class="term-time">[{t3}]</span> <span class="term-warn">[WARN]</span> SUEZ CANAL TRAFFIC DENSITY INCREASING 12%</div>
-            <div><span class="term-time">[{t4}]</span> <span class="term-sys">[SYS]</span> OPTIMIZING FUEL CURVES FOR FLEET ALPHA...</div>
-            """
-            
+        logs = f"""
+        <div><span class="term-time">[{t1}]</span> <span class="term-crit">[CRITICAL]</span> TYPHOON PRESSURE DROP IN SEC-4</div>
+        <div><span class="term-time">[{t2}]</span> <span class="term-sys">[SYS]</span> HALTING AIS LEGACY ROUTES IN ZONE</div>
+        <div><span class="term-time">[{t3}]</span> <span style="color:#10B981;">[SUCCESS]</span> AUTONOMOUS REROUTE: 42 VESSELS BYPASSED</div>
+        <div><span class="term-time">[{t4}]</span> <span class="term-warn">[WARN]</span> RECALCULATING FUEL BURN CURVES...</div>
+        """ if simulate_anomaly else f"""
+        <div><span class="term-time">[{t1}]</span> <span class="term-sys">[SYS]</span> INGESTING BIGQUERY TELEMETRY (3,500 ROWS)</div>
+        <div><span class="term-time">[{t2}]</span> <span style="color:#10B981;">[SUCCESS]</span> PACIFIC CHOKEPOINT CLEAR</div>
+        <div><span class="term-time">[{t3}]</span> <span class="term-warn">[WARN]</span> SUEZ CANAL TRAFFIC DENSITY INCREASING 12%</div>
+        <div><span class="term-time">[{t4}]</span> <span class="term-sys">[SYS]</span> OPTIMIZING FUEL CURVES FOR FLEET ALPHA...</div>
+        """
+        
         st.markdown(f"""
             <div class="terminal-console">
                 <div>> INITIALIZING O.M.E.G.A. PROTOCOL...</div>
@@ -343,13 +340,25 @@ if screen == "Fleet Operations":
         """, unsafe_allow_html=True)
 
 # ==========================================
-# SCREEN 2: CHOKEPOINT ANALYTICS
+# SCREEN 2: CHOKEPOINT ANALYTICS (UPGRADED)
 # ==========================================
 elif screen == "Chokepoint Analytics":
     st.markdown("""
         <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Bottleneck Analytics</h1>
-            <p style="color: #94A3B8; font-size: 0.95rem;">Historical density models isolating the disruption entity groups.</p>
+            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Bottleneck & Chokepoint Analytics</h1>
+            <p style="color: #94A3B8; font-size: 0.95rem;">Granular regional vulnerability analysis across global trade corridors.</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # VOICE / LIVE EXECUTIVE SUMMARY NARRATIVE (Changes live if anomaly toggle is switched)
+    if simulate_anomaly:
+        voice_text = "🔊 [LIVE AI VOICE BRIEFING]: ⚠️ Critical alert active! Category 4 Typhoon in South China Sea has spiked congestion density by 310%. Immediate diversion enforced across 42 active container vectors to prevent $2.1M in idle fuel burn."
+    else:
+        voice_text = "🔊 [LIVE AI VOICE BRIEFING]: 🟢 System nominal. Malacca Strait and Suez corridor experiencing normal queuing loads. Average anchor delay is stable at 42.8 hours with 18.4 MT daily auxiliary generator waste."
+
+    st.markdown(f"""
+        <div class="voice-briefing-box">
+            {voice_text}
         </div>
     """, unsafe_allow_html=True)
     
@@ -357,17 +366,18 @@ elif screen == "Chokepoint Analytics":
     col_map, col_metrics = st.columns([2, 1])
     
     with col_map:
+        st.markdown("<div style='font-size: 1rem; font-weight: 600; margin-bottom: 8px;'>Global Vulnerability Heatmap</div>", unsafe_allow_html=True)
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            initial_view_state=pdk.ViewState(latitude=20.0, longitude=50.0, zoom=1.5, pitch=0),
+            initial_view_state=pdk.ViewState(latitude=15.0, longitude=30.0, zoom=1.4, pitch=0),
             layers=[
                 pdk.Layer(
                     'HeatmapLayer',
                     data=choke_df,
                     get_position='[longitude, latitude]',
-                    radiusPixels=60,
-                    intensity=1.5,
-                    threshold=0.05
+                    radiusPixels=50,
+                    intensity=1.8,
+                    threshold=0.04
                 )
             ]
         ))
@@ -386,18 +396,44 @@ elif screen == "Chokepoint Analytics":
             </div>
         """, unsafe_allow_html=True)
 
+    # ADD CHARTS & DATA TABLES ROW
+    st.markdown("<div style='font-size: 1.2rem; font-weight: 600; margin-top: 30px; margin-bottom: 15px;'>Corridor Disruption Index & Historical Breakdown</div>", unsafe_allow_html=True)
+    
+    tab_chart, tab_table = st.tabs(["📊 Analytics Charts", "📋 Raw Telemetry Matrix"])
+    
+    with tab_chart:
+        chart_col1, chart_col2 = st.columns(2)
+        with chart_col1:
+            st.markdown("<div class='kpi-title' style='margin-bottom:10px;'>Monthly Queue Duration (Hours)</div>", unsafe_allow_html=True)
+            monthly_queue = pd.DataFrame({'Idle Hours': [45, 52, 61, 48, 55, 42.8]}, index=['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'])
+            st.bar_chart(monthly_queue)
+        with chart_col2:
+            st.markdown("<div class='kpi-title' style='margin-bottom:10px;'>Fuel Burn Variance by Channel (MT)</div>", unsafe_allow_html=True)
+            fuel_variance = pd.DataFrame({'Fuel Burn (MT)': [320, 410, 290, 380, 450]}, index=['Malacca', 'Suez', 'Panama', 'Gibraltar', 'English Channel'])
+            st.line_chart(fuel_variance)
+
+    with tab_table:
+        st.markdown("<div class='kpi-title' style='margin-bottom:10px;'>Top Bottleneck Entities Logged in BigQuery</div>", unsafe_allow_html=True)
+        sample_table = pd.DataFrame({
+            'Corridor ID': ['CHOKE-901 (Malacca)', 'CHOKE-402 (Suez)', 'CHOKE-105 (Panama)', 'CHOKE-888 (Gibraltar)'],
+            'Active Vessels': [142, 98, 76, 54],
+            'Avg Delay (Hrs)': [48.2, 39.5, 31.0, 24.4],
+            'Status': ['CRITICAL', 'WARNING', 'STABLE', 'OPTIMAL']
+        })
+        st.dataframe(sample_table, use_container_width=True)
+
 # ==========================================
-# SCREEN 3: DYNAMIC ECO-ROUTER & ROI
+# SCREEN 3: DYNAMIC ECO-ROUTER & ROI (UPGRADED)
 # ==========================================
 elif screen == "Dynamic Eco-Router":
     st.markdown("""
         <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Enterprise ROI & Eco-Routing</h1>
+            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Enterprise ROI & Carbon Offset</h1>
             <p style="color: #94A3B8; font-size: 0.95rem;">Translate SDG 13 Climate Action directly into enterprise profitability.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    # LETHAL FEATURE 3: PREDICTIVE ROI CALCULATOR
+    # B2B Predictive Savings Calculator
     st.markdown("<div style='background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 25px; border-radius: 12px; margin-bottom: 30px;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='color: #10B981; font-size: 1.2rem; margin-bottom: 20px;'>B2B Predictive Savings Calculator</h3>", unsafe_allow_html=True)
     
@@ -407,31 +443,46 @@ elif screen == "Dynamic Eco-Router":
     with calc_col2:
         annual_voyages = st.slider("Average Annual Voyages per Vessel", min_value=10, max_value=100, value=32)
         
-    # Standard route vs LEVIATHAN bypass constants
     savings_usd_per_voyage = 48000
     savings_co2_per_voyage = 278
     
-    total_usd = (fleet_size * annual_voyages * savings_usd_per_voyage) / 1000000 # In Millions
+    total_usd = (fleet_size * annual_voyages * savings_usd_per_voyage) / 1000000 
     total_co2 = fleet_size * annual_voyages * savings_co2_per_voyage
+    carbon_credit_revenue = total_co2 * 25 # $25 per ton of CO2 offset
     
     res_c1, res_c2 = st.columns(2)
     with res_c1:
         st.markdown(f"""
             <div style="margin-top: 20px;">
                 <div class="kpi-title">Projected Annual Capital Saved</div>
-                <div class="kpi-value" style="font-size: 3rem; color: #10B981;">${total_usd:.1f}M</div>
+                <div class="kpi-value" style="font-size: 2.6rem; color: #10B981;">${total_usd:.1f}M</div>
             </div>
         """, unsafe_allow_html=True)
     with res_c2:
         st.markdown(f"""
             <div style="margin-top: 20px;">
                 <div class="kpi-title">Projected SDG 13 CO2 Abatement</div>
-                <div class="kpi-value" style="font-size: 3rem;">{total_co2:,} Tons</div>
+                <div class="kpi-value" style="font-size: 2.6rem;">{total_co2:,} Tons</div>
             </div>
         """, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<h3 style='font-size: 1.1rem; color: #94A3B8; margin-bottom: 15px;'>Per-Voyage Bypass Metrics</h3>", unsafe_allow_html=True)
+    # NEW USEFUL FEATURE: CARBON CREDIT MONETIZATION SIMULATOR
+    st.markdown("""
+        <div class="glass-card glass-card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div class="kpi-title" style="color: #10B981;">New Feature: Carbon Credit Monetization Engine</div>
+                    <div style="font-size: 1.2rem; font-weight: 700; color: #F8FAFC; margin-top: 4px;">
+                        Estimated Carbon Offset Revenue: <span style="color: #10B981;">${:,} USD / yr</span> (at $25/Ton)
+                    </div>
+                </div>
+                <div class="kpi-badge badge-green">ESG Revenue Stream</div>
+            </div>
+        </div>
+    """.format(int(carbon_credit_revenue)), unsafe_allow_html=True)
+
+    st.markdown("<h3 style='font-size: 1.1rem; color: #94A3B8; margin-top: 25px; margin-bottom: 15px;'>Per-Voyage Bypass Metrics</h3>", unsafe_allow_html=True)
     r1, r2 = st.columns(2)
     with r1:
         st.markdown("""
@@ -455,4 +506,4 @@ elif screen == "Dynamic Eco-Router":
                 <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">324 MT (-21.3%)</div></div>
                 <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div></div>
             </div>
-        """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)     
