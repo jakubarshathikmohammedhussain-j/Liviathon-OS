@@ -268,7 +268,7 @@ if screen == "Fleet Operations":
     st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density & Congestion Elevators (3D View)</div>", unsafe_allow_html=True)
     
     st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/dark-v11',
+        map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         initial_view_state=pdk.ViewState(
             latitude=8.5, 
             longitude=86.0, 
@@ -318,7 +318,7 @@ elif screen == "Chokepoint Analytics":
     with col_map:
         st.markdown("<div style='font-weight: 600; margin-bottom: 8px;'>Chokepoint Heatmap Density</div>", unsafe_allow_html=True)
         st.pydeck_chart(pdk.Deck(
-            map_style='mapbox://styles/mapbox/dark-v11',
+            map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
             initial_view_state=pdk.ViewState(latitude=5.5, longitude=97.0, zoom=5, pitch=0),
             layers=[
                 pdk.Layer(
