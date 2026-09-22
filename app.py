@@ -130,7 +130,7 @@ st.markdown("""
 def load_telemetry_stream():
     """
     Direct connector to BigQuery `leviathan_logistics` table.
-    Seamlessly switches to realistic mock streaming data if credentials are not configured.
+    Seamlessly switches to global high-fidelity mock data if credentials are not configured.
     """
     if "gcp_service_account" in st.secrets:
         try:
@@ -154,30 +154,47 @@ def load_telemetry_stream():
         except Exception:
             pass
 
-    # High-fidelity realistic simulation fallback
+    # GLOBAL High-fidelity realistic simulation fallback
     np.random.seed(42)
-    n_points = 1800
+    n_points = 3500 # Increased data density for a mind-blowing global view
     
-    # Critical maritime hubs: Malacca Strait, Bay of Bengal, Arabian Sea, Suez approach
-    lat_clusters = np.random.choice([5.5, 12.0, 15.0, 1.3], size=n_points, p=[0.4, 0.25, 0.2, 0.15])
-    lon_clusters = np.random.choice([95.0, 83.0, 65.0, 103.8], size=n_points, p=[0.4, 0.25, 0.2, 0.15])
+    # Global maritime hubs & chokepoints
+    # 1. Malacca Strait (SE Asia)
+    # 2. Suez Canal / Red Sea
+    # 3. Panama Canal
+    # 4. English Channel (Europe)
+    # 5. US West Coast (LA/Long Beach)
+    # 6. South China Sea
+    # 7. Strait of Gibraltar
     
-    lats = lat_clusters + np.random.normal(0, 1.8, n_points)
-    lons = lon_clusters + np.random.normal(0, 2.5, n_points)
+    lat_clusters = np.random.choice(
+        [5.5, 27.0, 9.1, 50.0, 33.7, 15.0, 35.9], 
+        size=n_points, 
+        p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
+    )
+    lon_clusters = np.random.choice(
+        [95.0, 34.6, -79.7, -1.0, -118.2, 115.0, -5.5], 
+        size=n_points, 
+        p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
+    )
+    
+    # Add noise to spread the ships out realistically along routes
+    lats = lat_clusters + np.random.normal(0, 3.5, n_points)
+    lons = lon_clusters + np.random.normal(0, 4.5, n_points)
     
     entities = np.random.choice(
-        ['Pacific Container Chok', 'Maersk Line Triple-E', 'CMA CGM Apex', 'Evergreen Marine G-Type'], 
+        ['Pacific Container Chok', 'Maersk Line Triple-E', 'CMA CGM Apex', 'Evergreen Marine G-Type', 'Suez Congestion Anomaly', 'Panama Transit Delay'], 
         size=n_points, 
-        p=[0.18, 0.32, 0.28, 0.22]
+        p=[0.12, 0.28, 0.25, 0.20, 0.08, 0.07]
     )
     
     return pd.DataFrame({
-        'timestamp': pd.date_range(end=datetime.now(), periods=n_points, freq='5min'),
-        'domain': 'LEVIATHAN',
+        'timestamp': pd.date_range(end=datetime.now(), periods=n_points, freq='2min'),
+        'domain': 'LEVIATHAN_GLOBAL',
         'entity_id': entities,
         'latitude': lats,
         'longitude': lons,
-        'is_chokepoint': [e == 'Pacific Container Chok' for e in entities]
+        'is_chokepoint': [('Chok' in e or 'Anomaly' in e or 'Delay' in e) for e in entities]
     })
 
 data = load_telemetry_stream()
