@@ -147,6 +147,7 @@ def load_telemetry_stream():
     np.random.seed(42)
     n_points = 3500 
     
+    # Global maritime hubs & chokepoints
     lat_clusters = np.random.choice(
         [5.5, 27.0, 9.1, 50.0, 33.7, 15.0, 35.9], 
         size=n_points, p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
