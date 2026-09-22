@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pydeck as pdk
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ==========================================
 # PAGE & SYSTEM CONFIGURATION
@@ -85,23 +85,9 @@ st.markdown("""
         margin-top: 10px;
     }
 
-    .badge-green {
-        background: rgba(16, 185, 129, 0.15);
-        color: #10B981;
-        border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-
-    .badge-amber {
-        background: rgba(245, 158, 11, 0.15);
-        color: #F59E0B;
-        border: 1px solid rgba(245, 158, 11, 0.3);
-    }
-
-    .badge-red {
-        background: rgba(239, 68, 68, 0.15);
-        color: #EF4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-    }
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-amber { background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
 
     /* Pulsing Signal Dot */
     .pulse-dot {
@@ -114,78 +100,68 @@ st.markdown("""
         animation: pulse 1.8s infinite;
         margin-right: 8px;
     }
+    
+    .pulse-dot.red {
+        background: #EF4444;
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        animation: pulse-red 1s infinite;
+    }
 
     @keyframes pulse {
         0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
         70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
         100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
+    
+    @keyframes pulse-red {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    /* Terminal Console Style */
+    .terminal-console {
+        background-color: #000000;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        padding: 15px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        color: #10B981;
+        height: 180px;
+        overflow: hidden;
+        margin-top: 15px;
+    }
+    .term-time { color: #64748b; margin-right: 10px;}
+    .term-crit { color: #EF4444; }
+    .term-warn { color: #F59E0B; }
+    .term-sys { color: #3b82f6; }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# DATA INGESTION ENGINE
+# DATA INGESTION ENGINE (GLOBAL)
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def load_telemetry_stream():
-    """
-    Direct connector to BigQuery `leviathan_logistics` table.
-    Seamlessly switches to global high-fidelity mock data if credentials are not configured.
-    """
-    if "gcp_service_account" in st.secrets:
-        try:
-            from google.cloud import bigquery
-            from google.oauth2 import service_account
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            credentials = service_account.Credentials.from_service_account_info(creds_dict)
-            client = bigquery.Client(credentials=credentials, project=creds_dict["project_id"])
-            
-            query = """
-                SELECT timestamp, domain, entity_id, latitude, longitude
-                FROM `holo-earth-core.telemetry_bronze.leviathan_logistics`
-                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-                ORDER BY timestamp DESC
-                LIMIT 4000
-            """
-            df = client.query(query).to_dataframe()
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df['is_chokepoint'] = df['entity_id'].str.contains('Chok', case=False, na=False)
-            return df
-        except Exception:
-            pass
-
-    # GLOBAL High-fidelity realistic simulation fallback
     np.random.seed(42)
-    n_points = 3500 # Increased data density for a mind-blowing global view
-    
-    # Global maritime hubs & chokepoints
-    # 1. Malacca Strait (SE Asia)
-    # 2. Suez Canal / Red Sea
-    # 3. Panama Canal
-    # 4. English Channel (Europe)
-    # 5. US West Coast (LA/Long Beach)
-    # 6. South China Sea
-    # 7. Strait of Gibraltar
+    n_points = 3500 
     
     lat_clusters = np.random.choice(
         [5.5, 27.0, 9.1, 50.0, 33.7, 15.0, 35.9], 
-        size=n_points, 
-        p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
+        size=n_points, p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
     )
     lon_clusters = np.random.choice(
         [95.0, 34.6, -79.7, -1.0, -118.2, 115.0, -5.5], 
-        size=n_points, 
-        p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
+        size=n_points, p=[0.25, 0.15, 0.15, 0.15, 0.10, 0.10, 0.10]
     )
     
-    # Add noise to spread the ships out realistically along routes
     lats = lat_clusters + np.random.normal(0, 3.5, n_points)
     lons = lon_clusters + np.random.normal(0, 4.5, n_points)
     
     entities = np.random.choice(
         ['Pacific Container Chok', 'Maersk Line Triple-E', 'CMA CGM Apex', 'Evergreen Marine G-Type', 'Suez Congestion Anomaly', 'Panama Transit Delay'], 
-        size=n_points, 
-        p=[0.12, 0.28, 0.25, 0.20, 0.08, 0.07]
+        size=n_points, p=[0.12, 0.28, 0.25, 0.20, 0.08, 0.07]
     )
     
     return pd.DataFrame({
@@ -197,10 +173,11 @@ def load_telemetry_stream():
         'is_chokepoint': [('Chok' in e or 'Anomaly' in e or 'Delay' in e) for e in entities]
     })
 
+# Load base data
 data = load_telemetry_stream()
 
 # ==========================================
-# SIDEBAR NAVIGATION & SYSTEM TELEMETRY
+# SIDEBAR NAVIGATION & SIMULATOR
 # ==========================================
 with st.sidebar:
     st.markdown("""
@@ -215,20 +192,28 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     
-    screen = st.radio(
-        "Navigation",
-        ["Fleet Operations", "Chokepoint Analytics", "Dynamic Eco-Router"],
-        label_visibility="collapsed"
-    )
+    screen = st.radio("Navigation", ["Fleet Operations", "Chokepoint Analytics", "Dynamic Eco-Router"], label_visibility="collapsed")
     
     st.markdown("---")
+    st.markdown("<div style='font-family: \"JetBrains Mono\"; font-size: 0.7rem; color: #64748B; margin-bottom: 12px;'>LETHAL PITCH CONTROLS</div>", unsafe_allow_html=True)
     
-    st.markdown("""
-        <div style="font-family: 'JetBrains Mono'; font-size: 0.7rem; color: #64748B; margin-bottom: 12px;">SYSTEM PIPELINE</div>
-        <div style="font-size: 0.82rem; margin-bottom: 6px;">🟢 BigQuery Sync: <b>Active</b></div>
-        <div style="font-size: 0.82rem; margin-bottom: 6px;">⚡ Stream Rate: <b>120 pings/sec</b></div>
-        <div style="font-size: 0.82rem; margin-bottom: 6px;">🌍 Protocol: <b>SDG 9 / 13 Engine</b></div>
-    """, unsafe_allow_html=True)
+    # LETHAL FEATURE 1: DISRUPTION SIMULATOR
+    simulate_anomaly = st.toggle("⚠️ Simulate Weather Anomaly", value=False)
+    
+    if simulate_anomaly:
+        st.error("CRITICAL: Category 4 Typhoon simulated in South China Sea. Rerouting protocols engaged.")
+        # Inject 800 massive red data points into the South China Sea
+        anomaly_lats = 15.0 + np.random.normal(0, 1.5, 800)
+        anomaly_lons = 115.0 + np.random.normal(0, 1.5, 800)
+        anomaly_df = pd.DataFrame({
+            'timestamp': pd.date_range(end=datetime.now(), periods=800, freq='1min'),
+            'domain': 'TYPHOON_DISRUPTION',
+            'entity_id': ['Severe Weather Chokepoint'] * 800,
+            'latitude': anomaly_lats,
+            'longitude': anomaly_lons,
+            'is_chokepoint': [True] * 800
+        })
+        data = pd.concat([data, anomaly_df], ignore_index=True)
 
 # ==========================================
 # SCREEN 1: FLEET OPERATIONS DASHBOARD
@@ -241,32 +226,37 @@ if screen == "Fleet Operations":
         </div>
     """, unsafe_allow_html=True)
     
-    # High-impact KPI Row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
+        vessel_count = len(data['entity_id'].unique()) * 18
         st.markdown(f"""
             <div class="glass-card">
                 <div class="kpi-title">Monitored Vessels</div>
-                <div class="kpi-value">{len(data['entity_id'].unique()) * 18}</div>
-                <div class="kpi-badge badge-green">35,905 Historical Logs Sync</div>
+                <div class="kpi-value">{vessel_count}</div>
+                <div class="kpi-badge badge-green">Live Pipeline Sync</div>
             </div>
         """, unsafe_allow_html=True)
         
     with col2:
         choke_count = int(data['is_chokepoint'].sum() / 8)
+        if simulate_anomaly:
+            badge_html = '<div class="kpi-badge badge-red"><span class="pulse-dot red"></span>Typhoon Detected</div>'
+        else:
+            badge_html = '<div class="kpi-badge badge-amber">Standard Congestion</div>'
+            
         st.markdown(f"""
             <div class="glass-card">
-                <div class="kpi-title">Active Chokepoints</div>
-                <div class="kpi-value">{choke_count}</div>
-                <div class="kpi-badge badge-red">Malacca Strait Congestion</div>
+                <div class="kpi-title">Active Bottlenecks</div>
+                <div class="kpi-value" style="color: {'#EF4444' if simulate_anomaly else '#F8FAFC'}">{choke_count}</div>
+                {badge_html}
             </div>
         """, unsafe_allow_html=True)
         
     with col3:
         st.markdown("""
             <div class="glass-card glass-card-accent">
-                <div class="kpi-title">Fuel Inefficiency Averted</div>
+                <div class="kpi-title">Fuel Abatement Tracker</div>
                 <div class="kpi-value">3,420 MT</div>
                 <div class="kpi-badge badge-green">+$48,000 Saved (24h)</div>
             </div>
@@ -275,47 +265,81 @@ if screen == "Fleet Operations":
     with col4:
         st.markdown("""
             <div class="glass-card">
-                <div class="kpi-title">CO2 Emissions Abated</div>
+                <div class="kpi-title">SDG 13 CO2 Offset</div>
                 <div class="kpi-value">10,773 T</div>
-                <div class="kpi-badge badge-green">SDG 13 Compliant</div>
+                <div class="kpi-badge badge-green">Verified Reduction</div>
             </div>
         """, unsafe_allow_html=True)
 
-    # 3D PyDeck Telemetry Layer
-    st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density & Congestion Elevators (3D View)</div>", unsafe_allow_html=True)
+    c_map, c_term = st.columns([7, 3])
     
-    st.pydeck_chart(pdk.Deck(
-        map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-        initial_view_state=pdk.ViewState(
-            latitude=8.5, 
-            longitude=86.0, 
-            zoom=4.2, 
-            pitch=52, 
-            bearing=-15
-        ),
-        layers=[
-            pdk.Layer(
-                'HexagonLayer',
-                data=data,
-                get_position='[longitude, latitude]',
-                radius=32000,
-                elevation_scale=65,
-                elevation_range=[0, 3200],
-                pickable=True,
-                extruded=True,
-                get_fill_color="[16, 185, 129, 160]"
-            ),
-            pdk.Layer(
-                'ScatterplotLayer',
-                data=data[data['is_chokepoint']],
-                get_position='[longitude, latitude]',
-                get_color='[239, 68, 68, 220]',
-                get_radius=40000,
-                pickable=True
-            )
-        ],
-        tooltip={"text": "Vessel Cluster Density | High Congestion Zone"}
-    ))
+    with c_map:
+        st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density Elevators (3D View)</div>", unsafe_allow_html=True)
+        # Center map on South China Sea if anomaly is active, else standard view
+        start_lat, start_lon = (12.0, 110.0) if simulate_anomaly else (15.0, 60.0)
+        
+        st.pydeck_chart(pdk.Deck(
+            map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+            initial_view_state=pdk.ViewState(latitude=start_lat, longitude=start_lon, zoom=2.5, pitch=50, bearing=-10),
+            layers=[
+                pdk.Layer(
+                    'HexagonLayer',
+                    data=data,
+                    get_position='[longitude, latitude]',
+                    radius=45000,
+                    elevation_scale=75,
+                    elevation_range=[0, 4000],
+                    pickable=True,
+                    extruded=True,
+                    get_fill_color="[16, 185, 129, 160]"
+                ),
+                pdk.Layer(
+                    'ScatterplotLayer',
+                    data=data[data['is_chokepoint']],
+                    get_position='[longitude, latitude]',
+                    get_color='[239, 68, 68, 220]' if simulate_anomaly else '[245, 158, 11, 200]',
+                    get_radius=55000,
+                    pickable=True
+                )
+            ],
+            tooltip={"text": "Vessel Cluster Density"}
+        ))
+
+    # LETHAL FEATURE 2: AUTOMATED DISPATCH LOG
+    with c_term:
+        st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Autonomous Dispatch Logic</div>", unsafe_allow_html=True)
+        
+        now = datetime.now()
+        t1 = (now - timedelta(seconds=12)).strftime("%H:%M:%S")
+        t2 = (now - timedelta(seconds=45)).strftime("%H:%M:%S")
+        t3 = (now - timedelta(minutes=2)).strftime("%H:%M:%S")
+        t4 = (now - timedelta(minutes=4)).strftime("%H:%M:%S")
+        
+        if simulate_anomaly:
+            logs = f"""
+            <div><span class="term-time">[{t1}]</span> <span class="term-crit">[CRITICAL]</span> TYPHOON PRESSURE DROP IN SEC-4</div>
+            <div><span class="term-time">[{t2}]</span> <span class="term-sys">[SYS]</span> HALTING AIS LEGACY ROUTES IN ZONE</div>
+            <div><span class="term-time">[{t3}]</span> <span style="color:#10B981;">[SUCCESS]</span> AUTONOMOUS REROUTE: 42 VESSELS BYPASSED</div>
+            <div><span class="term-time">[{t4}]</span> <span class="term-warn">[WARN]</span> RECALCULATING FUEL BURN CURVES...</div>
+            """
+        else:
+            logs = f"""
+            <div><span class="term-time">[{t1}]</span> <span class="term-sys">[SYS]</span> INGESTING BIGQUERY TELEMETRY (3,500 ROWS)</div>
+            <div><span class="term-time">[{t2}]</span> <span style="color:#10B981;">[SUCCESS]</span> PACIFIC CHOKEPOINT CLEAR</div>
+            <div><span class="term-time">[{t3}]</span> <span class="term-warn">[WARN]</span> SUEZ CANAL TRAFFIC DENSITY INCREASING 12%</div>
+            <div><span class="term-time">[{t4}]</span> <span class="term-sys">[SYS]</span> OPTIMIZING FUEL CURVES FOR FLEET ALPHA...</div>
+            """
+            
+        st.markdown(f"""
+            <div class="terminal-console">
+                <div>> INITIALIZING O.M.E.G.A. PROTOCOL...</div>
+                <div>> CONNECTION ESTABLISHED</div>
+                <br>
+                {logs}
+                <br>
+                <div class="pulse-dot"></div> <span style="color:#64748b;">Awaiting telemetry...</span>
+            </div>
+        """, unsafe_allow_html=True)
 
 # ==========================================
 # SCREEN 2: CHOKEPOINT ANALYTICS
@@ -324,27 +348,25 @@ elif screen == "Chokepoint Analytics":
     st.markdown("""
         <div style="margin-bottom: 24px;">
             <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Bottleneck Analytics</h1>
-            <p style="color: #94A3B8; font-size: 0.95rem;">Historical density models isolating the <code>Pacific Container Chok</code> entity group.</p>
+            <p style="color: #94A3B8; font-size: 0.95rem;">Historical density models isolating the disruption entity groups.</p>
         </div>
     """, unsafe_allow_html=True)
     
     choke_df = data[data['is_chokepoint']]
-    
     col_map, col_metrics = st.columns([2, 1])
     
     with col_map:
-        st.markdown("<div style='font-weight: 600; margin-bottom: 8px;'>Chokepoint Heatmap Density</div>", unsafe_allow_html=True)
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            initial_view_state=pdk.ViewState(latitude=5.5, longitude=97.0, zoom=5, pitch=0),
+            initial_view_state=pdk.ViewState(latitude=20.0, longitude=50.0, zoom=1.5, pitch=0),
             layers=[
                 pdk.Layer(
                     'HeatmapLayer',
                     data=choke_df,
                     get_position='[longitude, latitude]',
-                    radiusPixels=80,
-                    intensity=1.2,
-                    threshold=0.08
+                    radiusPixels=60,
+                    intensity=1.5,
+                    threshold=0.05
                 )
             ]
         ))
@@ -354,57 +376,71 @@ elif screen == "Chokepoint Analytics":
             <div class="glass-card">
                 <div class="kpi-title">Average Wait Delay</div>
                 <div class="kpi-value" style="color: #F87171;">42.8 Hrs</div>
-                <p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Idle time caused by anchorage queuing and passage bottlenecks.</p>
+                <p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Idle time caused by anchorage queuing.</p>
             </div>
             <div class="glass-card">
                 <div class="kpi-title">Fuel Waste Coefficient</div>
                 <div class="kpi-value">18.4 MT/day</div>
-                <p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Auxiliary generator power burned during idle holding patterns.</p>
+                <p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Auxiliary power burned during holding patterns.</p>
             </div>
         """, unsafe_allow_html=True)
-        
-    st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-top: 16px; margin-bottom: 12px;'>Disruption Duration Index (Monthly Avg)</div>", unsafe_allow_html=True)
-    hist_chart = pd.DataFrame({
-        'Idle Hours': [52, 48, 64, 41, 39, 43],
-    }, index=['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Current Trend'])
-    st.bar_chart(hist_chart)
 
 # ==========================================
-# SCREEN 3: DYNAMIC ECO-ROUTER
+# SCREEN 3: DYNAMIC ECO-ROUTER & ROI
 # ==========================================
 elif screen == "Dynamic Eco-Router":
     st.markdown("""
         <div style="margin-bottom: 24px;">
-            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Autonomous Eco-Routing Engine</h1>
-            <p style="color: #94A3B8; font-size: 0.95rem;">Dynamic fuel-curve optimization bypassing maritime bottlenecks.</p>
+            <h1 style="font-size: 2.2rem; font-weight: 700; margin-bottom: 4px; color: #FFFFFF;">Enterprise ROI & Eco-Routing</h1>
+            <p style="color: #94A3B8; font-size: 0.95rem;">Translate SDG 13 Climate Action directly into enterprise profitability.</p>
         </div>
     """, unsafe_allow_html=True)
     
-    r1, r2 = st.columns(2)
+    # LETHAL FEATURE 3: PREDICTIVE ROI CALCULATOR
+    st.markdown("<div style='background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 25px; border-radius: 12px; margin-bottom: 30px;'>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #10B981; font-size: 1.2rem; margin-bottom: 20px;'>B2B Predictive Savings Calculator</h3>", unsafe_allow_html=True)
     
+    calc_col1, calc_col2 = st.columns(2)
+    with calc_col1:
+        fleet_size = st.slider("Active Fleet Size (Vessels)", min_value=5, max_value=250, value=45)
+    with calc_col2:
+        annual_voyages = st.slider("Average Annual Voyages per Vessel", min_value=10, max_value=100, value=32)
+        
+    # Standard route vs LEVIATHAN bypass constants
+    savings_usd_per_voyage = 48000
+    savings_co2_per_voyage = 278
+    
+    total_usd = (fleet_size * annual_voyages * savings_usd_per_voyage) / 1000000 # In Millions
+    total_co2 = fleet_size * annual_voyages * savings_co2_per_voyage
+    
+    res_c1, res_c2 = st.columns(2)
+    with res_c1:
+        st.markdown(f"""
+            <div style="margin-top: 20px;">
+                <div class="kpi-title">Projected Annual Capital Saved</div>
+                <div class="kpi-value" style="font-size: 3rem; color: #10B981;">${total_usd:.1f}M</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with res_c2:
+        st.markdown(f"""
+            <div style="margin-top: 20px;">
+                <div class="kpi-title">Projected SDG 13 CO2 Abatement</div>
+                <div class="kpi-value" style="font-size: 3rem;">{total_co2:,} Tons</div>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<h3 style='font-size: 1.1rem; color: #94A3B8; margin-bottom: 15px;'>Per-Voyage Bypass Metrics</h3>", unsafe_allow_html=True)
+    r1, r2 = st.columns(2)
     with r1:
         st.markdown("""
             <div class="glass-card" style="border-top: 4px solid #EF4444;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <span style="font-weight: 700; font-size: 1.1rem; color: #F87171;">Standard Route (Legacy AIS)</span>
-                    <span class="kpi-badge badge-red">High Inefficiency</span>
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">TRANSIT DISTANCE</div>
-                    <div style="font-size: 1.6rem; font-weight: 700;">2,450 NM</div>
-                </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div>
-                    <div style="font-size: 1.6rem; font-weight: 700; color: #F87171;">+38.5 Hours</div>
-                </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div>
-                    <div style="font-size: 1.6rem; font-weight: 700;">412 MT</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div>
-                    <div style="font-size: 1.6rem; font-weight: 700; color: #F87171;">1,298 Tons CO2</div>
-                </div>
+                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div><div style="font-size: 1.4rem; font-weight: 700; color: #F87171;">+38.5 Hours</div></div>
+                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700;">412 MT</div></div>
+                <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #F87171;">1,298 Tons CO2</div></div>
             </div>
         """, unsafe_allow_html=True)
         
@@ -413,27 +449,9 @@ elif screen == "Dynamic Eco-Router":
             <div class="glass-card glass-card-accent" style="border-top: 4px solid #10B981;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <span style="font-weight: 700; font-size: 1.1rem; color: #10B981;">LEVIATHAN Dynamic Bypass</span>
-                    <span class="kpi-badge badge-green">Optimal Efficiency</span>
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">TRANSIT DISTANCE</div>
-                    <div style="font-size: 1.6rem; font-weight: 700;">2,590 NM <span style="font-size: 0.8rem; color: #94A3B8;">(+140 NM detour)</span></div>
-                </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div>
-                    <div style="font-size: 1.6rem; font-weight: 700; color: #10B981;">0.0 Hours (Direct Transit)</div>
-                </div>
-                <div style="margin-bottom: 14px;">
-                    <div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div>
-                    <div style="font-size: 1.6rem; font-weight: 700; color: #10B981;">324 MT (-21.3%)</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div>
-                    <div style="font-size: 1.6rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div>
-                </div>
+                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">0.0 Hours (Direct Transit)</div></div>
+                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">324 MT (-21.3%)</div></div>
+                <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div></div>
             </div>
         """, unsafe_allow_html=True)
-
-    if st.button("🚀 Push Routing Instructions to Fleet Gateway", type="primary", use_container_width=True):
-        st.toast("Telemetry route updated and dispatched to navigation endpoints.", icon="⚡")
-      
