@@ -3,6 +3,13 @@ import pandas as pd
 import numpy as np
 import pydeck as pdk
 from datetime import datetime, timedelta
+import os
+
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
 
 # ==========================================
 # PAGE & SYSTEM CONFIGURATION
@@ -14,9 +21,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==========================================
-# WORLD-CLASS ENTERPRISE DARK UI (CUSTOM CSS)
-# ==========================================
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+if GEMINI_AVAILABLE and GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    gemini_model = None
+
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -62,6 +73,13 @@ st.markdown("""
         font-size: 0.88rem;
         color: #93C5FD;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        line-height: 1.5;
+    }
+    
+    .voice-briefing-box.critical {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.75) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #FCA5A5;
     }
 
     .kpi-title {
@@ -145,90 +163,41 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# GEOGRAPHIC DATA ENGINE (OCEAN-CONSTRAINED)
-# ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def load_telemetry_stream():
-    """
-    Returns authentic vessel coordinates locked strictly to ocean corridors:
-    - Malacca Strait (SE Asia)
-    - Bab-el-Mandeb & Red Sea / Suez (Middle East)
-    - Strait of Gibraltar (Mediterranean)
-    - English Channel (Northern Europe)
-    - Panama Canal approaches (Americas)
-    - Strait of Hormuz (Persian Gulf)
-    """
-    if "gcp_service_account" in st.secrets:
-        try:
-            from google.cloud import bigquery
-            from google.oauth2 import service_account
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            credentials = service_account.Credentials.from_service_account_info(creds_dict)
-            client = bigquery.Client(credentials=credentials, project=creds_dict["project_id"])
-            
-            query = """
-                SELECT timestamp, domain, entity_id, latitude, longitude
-                FROM `holo-earth-core.telemetry_bronze.leviathan_logistics`
-                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-                ORDER BY timestamp DESC
-                LIMIT 4000
-            """
-            df = client.query(query).to_dataframe()
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df['is_chokepoint'] = df['entity_id'].str.contains('Chok', case=False, na=False)
-            return df
-        except Exception:
-            pass
-
     np.random.seed(42)
-    corridors = [
-        # Malacca Strait (Lat 1.2 to 5.5, Lon 96.0 to 103.5)
-        {"lat_base": 3.2, "lon_base": 100.5, "lat_spread": 1.2, "lon_spread": 1.8, "count": 1000, "name": "Malacca Corridor"},
-        # Red Sea & Suez Canal (Lat 14.0 to 29.5, Lon 33.0 to 42.5)
-        {"lat_base": 22.0, "lon_base": 38.0, "lat_spread": 2.5, "lon_spread": 1.0, "count": 750, "name": "Suez / Red Sea Route"},
-        # Strait of Gibraltar (Lat 35.8 to 36.3, Lon -6.2 to -4.8)
-        {"lat_base": 35.95, "lon_base": -5.5, "lat_spread": 0.4, "lon_spread": 0.8, "count": 450, "name": "Gibraltar Strait"},
-        # English Channel (Lat 49.8 to 51.0, Lon -3.5 to 1.5)
-        {"lat_base": 50.2, "lon_base": -0.8, "lat_spread": 0.4, "lon_spread": 1.2, "count": 450, "name": "English Channel"},
-        # Panama Canal approaches (Lat 8.5 to 9.5, Lon -80.2 to -79.2)
-        {"lat_base": 9.1, "lon_base": -79.7, "lat_spread": 0.5, "lon_spread": 0.6, "count": 400, "name": "Panama Transit Zone"},
-        # Strait of Hormuz (Lat 25.5 to 26.8, Lon 55.5 to 57.0)
-        {"lat_base": 26.2, "lon_base": 56.4, "lat_spread": 0.5, "lon_spread": 0.7, "count": 450, "name": "Hormuz Energy Strait"}
-    ]
+    n_points = 3500 
     
-    all_lats, all_lons, all_entities, is_choke = [], [], [], []
+    # 1. Bay of Bengal / India East Coast
+    # 2. Malacca Strait (SE Asia)
+    # 3. Arabian Sea / West India
+    # 4. Suez Canal / Red Sea
+    # 5. English Channel (Europe)
+    # 6. Panama Canal
+    # 7. US West Coast (LA)
     
-    for c in corridors:
-        lats = np.random.normal(c["lat_base"], c["lat_spread"], c["count"])
-        lons = np.random.normal(c["lon_base"], c["lon_spread"], c["count"])
-        
-        entities = np.random.choice(
-            [f"{c['name']} Chokepoint", "Maersk Line Triple-E", "CMA CGM Apex", "Evergreen Marine G-Type", "Hapag-Lloyd Express"],
-            size=c["count"],
-            p=[0.22, 0.25, 0.23, 0.18, 0.12]
-        )
-        
-        all_lats.extend(lats)
-        all_lons.extend(lons)
-        all_entities.extend(entities)
-        is_choke.extend(["Chokepoint" in e for e in entities])
-
-    total_points = len(all_lats)
+    lat_clusters = np.random.choice([13.0, 5.5, 15.0, 22.0, 50.0, 9.1, 33.7], size=n_points, p=[0.25, 0.20, 0.15, 0.10, 0.10, 0.10, 0.10])
+    lon_clusters = np.random.choice([85.0, 95.0, 65.0, 38.0, -1.0, -79.7, -118.2], size=n_points, p=[0.25, 0.20, 0.15, 0.10, 0.10, 0.10, 0.10])
+    
+    lats = lat_clusters + np.random.normal(0, 2.5, n_points)
+    lons = lon_clusters + np.random.normal(0, 3.5, n_points)
+    
+    entities = np.random.choice(
+        ['Bay of Bengal Anomaly', 'Malacca Container Chok', 'Arabian Sea Delay', 'Maersk Line Triple-E', 'CMA CGM Apex'], 
+        size=n_points, p=[0.10, 0.12, 0.08, 0.40, 0.30]
+    )
+    
     return pd.DataFrame({
-        'timestamp': pd.date_range(end=datetime.now(), periods=total_points, freq='2min'),
+        'timestamp': pd.date_range(end=datetime.now(), periods=n_points, freq='2min'),
         'domain': 'LEVIATHAN_GLOBAL',
-        'entity_id': all_entities,
-        'latitude': all_lats,
-        'longitude': all_lons,
-        'is_chokepoint': is_choke
+        'entity_id': entities,
+        'latitude': lats,
+        'longitude': lons,
+        'is_chokepoint': [('Anomaly' in e or 'Chok' in e or 'Delay' in e) for e in entities]
     })
 
 data = load_telemetry_stream()
 
-# ==========================================
-# SIDEBAR NAVIGATION & SIMULATOR
-# ==========================================
 with st.sidebar:
     st.markdown("""
         <div style="padding: 10px 0 20px 0;">
@@ -250,9 +219,9 @@ with st.sidebar:
     simulate_anomaly = st.toggle("⚠️ Simulate Weather Anomaly", value=False)
     
     if simulate_anomaly:
-        st.error("CRITICAL: Category 4 Typhoon simulated in South China Sea. Autonomous reroute engaged.")
-        anomaly_lats = 14.5 + np.random.normal(0, 1.2, 800)
-        anomaly_lons = 114.5 + np.random.normal(0, 1.2, 800)
+        st.error("CRITICAL: Category 4 Typhoon simulated in Bay of Bengal. Autonomous reroute engaged.")
+        anomaly_lats = 13.0 + np.random.normal(0, 1.2, 800)
+        anomaly_lons = 85.0 + np.random.normal(0, 1.2, 800)
         anomaly_df = pd.DataFrame({
             'timestamp': pd.date_range(end=datetime.now(), periods=800, freq='1min'),
             'domain': 'TYPHOON_DISRUPTION',
@@ -263,9 +232,6 @@ with st.sidebar:
         })
         data = pd.concat([data, anomaly_df], ignore_index=True)
 
-# ==========================================
-# SCREEN 1: FLEET OPERATIONS DASHBOARD
-# ==========================================
 if screen == "Fleet Operations":
     st.markdown("""
         <div style="margin-bottom: 24px;">
@@ -275,7 +241,6 @@ if screen == "Fleet Operations":
     """, unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
         vessel_count = len(data['entity_id'].unique()) * 18
         st.markdown(f"""
@@ -285,7 +250,6 @@ if screen == "Fleet Operations":
                 <div class="kpi-badge badge-green">Live Telemetry Sync</div>
             </div>
         """, unsafe_allow_html=True)
-        
     with col2:
         choke_count = int(data['is_chokepoint'].sum() / 8)
         badge_html = '<div class="kpi-badge badge-red"><span class="pulse-dot red"></span>Typhoon Detected</div>' if simulate_anomaly else '<div class="kpi-badge badge-amber">Standard Congestion</div>'
@@ -296,7 +260,6 @@ if screen == "Fleet Operations":
                 {badge_html}
             </div>
         """, unsafe_allow_html=True)
-        
     with col3:
         st.markdown("""
             <div class="glass-card glass-card-accent">
@@ -305,7 +268,6 @@ if screen == "Fleet Operations":
                 <div class="kpi-badge badge-green">+$48,000 Saved (24h)</div>
             </div>
         """, unsafe_allow_html=True)
-        
     with col4:
         st.markdown("""
             <div class="glass-card">
@@ -319,9 +281,8 @@ if screen == "Fleet Operations":
     
     with c_map:
         st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density Elevators (3D Water Channels)</div>", unsafe_allow_html=True)
-        # Center map on anomaly if active, else standard view
-        start_lat, start_lon = (14.0, 112.0) if simulate_anomaly else (15.0, 50.0)
-        zoom_level = 3.2 if simulate_anomaly else 2.1
+        start_lat, start_lon = (12.0, 85.0) if simulate_anomaly else (15.0, 75.0)
+        zoom_level = 3.5 if simulate_anomaly else 2.1
         
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -331,7 +292,7 @@ if screen == "Fleet Operations":
                     'HexagonLayer',
                     data=data,
                     get_position='[longitude, latitude]',
-                    radius=32000,
+                    radius=35000,
                     elevation_scale=65,
                     elevation_range=[0, 3500],
                     pickable=True,
@@ -343,7 +304,7 @@ if screen == "Fleet Operations":
                     data=data[data['is_chokepoint']],
                     get_position='[longitude, latitude]',
                     get_color='[239, 68, 68, 220]' if simulate_anomaly else '[245, 158, 11, 200]',
-                    get_radius=38000,
+                    get_radius=40000,
                     pickable=True
                 )
             ],
@@ -360,7 +321,7 @@ if screen == "Fleet Operations":
         
         if simulate_anomaly:
             logs = f"""
-            <div><span class="term-time">[{t1}]</span> <span class="term-crit">[CRITICAL]</span> TYPHOON PRESSURE DROP DETECTED</div>
+            <div><span class="term-time">[{t1}]</span> <span class="term-crit">[CRITICAL]</span> TYPHOON DETECTED IN BAY OF BENGAL</div>
             <div><span class="term-time">[{t2}]</span> <span class="term-sys">[SYS]</span> HALTING AIS LEGACY ROUTES IN SEC-7</div>
             <div><span class="term-time">[{t3}]</span> <span style="color:#10B981;">[SUCCESS]</span> AUTONOMOUS REROUTE: 42 VESSELS BYPASSED</div>
             <div><span class="term-time">[{t4}]</span> <span class="term-warn">[WARN]</span> RECALCULATING VESSEL FUEL CURVES...</div>
@@ -384,9 +345,6 @@ if screen == "Fleet Operations":
             </div>
         """, unsafe_allow_html=True)
 
-# ==========================================
-# SCREEN 2: CHOKEPOINT ANALYTICS
-# ==========================================
 elif screen == "Chokepoint Analytics":
     st.markdown("""
         <div style="margin-bottom: 24px;">
@@ -395,12 +353,32 @@ elif screen == "Chokepoint Analytics":
         </div>
     """, unsafe_allow_html=True)
 
-    if simulate_anomaly:
-        voice_text = "🔊 [LIVE AI VOICE BRIEFING]: ⚠️ Critical alert active! Category 4 Typhoon in South China Sea has spiked congestion density by 310%. Immediate diversion enforced across 42 active container vectors to prevent $2.1M in idle fuel burn."
-    else:
-        voice_text = "🔊 [LIVE AI VOICE BRIEFING]: 🟢 System nominal. Malacca Strait and Suez corridor experiencing normal queuing loads. Average anchor delay is stable at 42.8 hours with 18.4 MT daily auxiliary generator waste."
+    # --- GEMINI AI INTEGRATION ---
+    @st.cache_data(ttl=120) # Cache to prevent API spam on re-renders
+    def get_ai_briefing(is_anomaly):
+        if gemini_model:
+            try:
+                state_desc = "Category 4 Typhoon active in Bay of Bengal causing severe congestion." if is_anomaly else "Normal global shipping loads, minor queues at Suez."
+                prompt = f"""You are the core intelligence of LEVIATHAN OS, a high-tech maritime logistics AI. 
+                Write a strict, concise, 2-sentence executive briefing. 
+                Current State: {state_desc}
+                Mention dynamic rerouting and fuel metrics. Tone: Cold, highly competent, analytical."""
+                
+                response = gemini_model.generate_content(prompt)
+                return f"🧠 **[GEMINI-FLASH LIVE INFERENCE]:** {response.text}"
+            except Exception as e:
+                pass # Fallback below if API limit hit
+                
+        # Bulletproof Fallback if no API key or error
+        if is_anomaly:
+            return "🔊 **[SYSTEM BRIEFING]:** Critical alert active. Category 4 Typhoon in Bay of Bengal has spiked congestion density by 310%. Immediate diversion enforced to prevent massive idle fuel burn."
+        else:
+            return "🔊 **[SYSTEM BRIEFING]:** System nominal. Malacca Strait and Suez corridors experiencing stable queuing loads. Average anchor delay holding at 42.8 hours."
 
-    st.markdown(f'<div class="voice-briefing-box">{voice_text}</div>', unsafe_allow_html=True)
+    # Display the AI Box
+    ai_text = get_ai_briefing(simulate_anomaly)
+    box_class = "voice-briefing-box critical" if simulate_anomaly else "voice-briefing-box"
+    st.markdown(f'<div class="{box_class}">{ai_text}</div>', unsafe_allow_html=True)
     
     choke_df = data[data['is_chokepoint']]
     col_map, col_metrics = st.columns([2, 1])
@@ -409,15 +387,15 @@ elif screen == "Chokepoint Analytics":
         st.markdown("<div style='font-size: 1rem; font-weight: 600; margin-bottom: 8px;'>Global Maritime Chokepoint Heatmap</div>", unsafe_allow_html=True)
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            initial_view_state=pdk.ViewState(latitude=18.0, longitude=55.0, zoom=1.8, pitch=0),
+            initial_view_state=pdk.ViewState(latitude=15.0, longitude=75.0, zoom=2.0, pitch=0),
             layers=[
                 pdk.Layer(
                     'HeatmapLayer',
                     data=choke_df,
                     get_position='[longitude, latitude]',
-                    radiusPixels=32,
-                    intensity=2.0,
-                    threshold=0.08
+                    radiusPixels=35,
+                    intensity=1.8,
+                    threshold=0.05
                 )
             ]
         ))
@@ -439,7 +417,6 @@ elif screen == "Chokepoint Analytics":
     st.markdown("<div style='font-size: 1.2rem; font-weight: 600; margin-top: 30px; margin-bottom: 15px;'>Corridor Disruption Index & Historical Breakdown</div>", unsafe_allow_html=True)
     
     tab_chart, tab_table = st.tabs(["📊 Analytics Charts", "📋 Raw Telemetry Matrix"])
-    
     with tab_chart:
         chart_col1, chart_col2 = st.columns(2)
         with chart_col1:
@@ -450,7 +427,6 @@ elif screen == "Chokepoint Analytics":
             st.markdown("<div class='kpi-title' style='margin-bottom:10px;'>Fuel Burn Variance by Channel (MT)</div>", unsafe_allow_html=True)
             fuel_variance = pd.DataFrame({'Fuel Burn (MT)': [320, 410, 290, 380, 450]}, index=['Malacca', 'Suez', 'Panama', 'Gibraltar', 'English Channel'])
             st.line_chart(fuel_variance)
-
     with tab_table:
         st.markdown("<div class='kpi-title' style='margin-bottom:10px;'>Top Bottleneck Entities Logged in Telemetry Database</div>", unsafe_allow_html=True)
         sample_table = pd.DataFrame({
@@ -461,9 +437,6 @@ elif screen == "Chokepoint Analytics":
         })
         st.dataframe(sample_table, use_container_width=True)
 
-# ==========================================
-# SCREEN 3: DYNAMIC ECO-ROUTER & ROI
-# ==========================================
 elif screen == "Dynamic Eco-Router":
     st.markdown("""
         <div style="margin-bottom: 24px;">
