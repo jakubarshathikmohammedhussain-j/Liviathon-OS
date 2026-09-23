@@ -12,20 +12,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Initialize session state variables
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "alarm_played" not in st.session_state:
     st.session_state.alarm_played = False
 
+# Configure Gemini if available in secrets
+GEMINI_AVAILABLE = False
 try:
     import google.generativeai as genai
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         gemini_model = genai.GenerativeModel('gemini-1.5-flash')
         GEMINI_AVAILABLE = True
-    else:
-        GEMINI_AVAILABLE = False
-except ImportError:
+except Exception:
     GEMINI_AVAILABLE = False
 
 st.markdown("""
@@ -74,26 +75,25 @@ def load_telemetry_stream():
     np.random.seed(42)
     n_points = 3500 
     
-    # Precise Lat/Lon pairs highly focused on Chennai/HCAS + Global hubs
     routes = [
-        (13.0, 85.0), # Bay of Bengal (High relevance to Chennai)
+        (13.0, 80.0), # Bay of Bengal / Chennai Hub
+        (25.0, 55.0), # Arabian Sea / Persian Gulf
         (5.5, 95.0),  # Malacca Strait
-        (15.0, 65.0), # Arabian Sea
-        (27.0, 34.6), # Suez Canal
+        (27.0, 34.6), # Suez Canal / Red Sea
         (50.0, -1.0), # English Channel
         (9.1, -79.7)  # Panama Canal
     ]
     
-    selected_routes = [routes[np.random.choice(len(routes), p=[0.25, 0.20, 0.20, 0.15, 0.10, 0.10])] for _ in range(n_points)]
+    selected_routes = [routes[np.random.choice(len(routes), p=[0.30, 0.20, 0.20, 0.15, 0.10, 0.05])] for _ in range(n_points)]
     lat_clusters = np.array([r[0] for r in selected_routes])
     lon_clusters = np.array([r[1] for r in selected_routes])
     
-    lats = lat_clusters + np.random.normal(0, 2.5, n_points)
-    lons = lon_clusters + np.random.normal(0, 3.5, n_points)
+    lats = lat_clusters + np.random.normal(0, 1.8, n_points)
+    lons = lon_clusters + np.random.normal(0, 2.2, n_points)
     
     entities = np.random.choice(
-        ['Bay of Bengal Anomaly', 'Malacca Container Chok', 'Arabian Sea Delay', 'Maersk Line Triple-E', 'CMA CGM Apex'], 
-        size=n_points, p=[0.10, 0.12, 0.08, 0.40, 0.30]
+        ['Bay of Bengal Hub Anomaly', 'Malacca Container Chok', 'Arabian Sea Delay', 'Maersk Line Triple-E', 'CMA CGM Apex'], 
+        size=n_points, p=[0.15, 0.15, 0.10, 0.35, 0.25]
     )
     
     return pd.DataFrame({
@@ -123,29 +123,13 @@ with st.sidebar:
     screen = st.radio("Navigation", ["Fleet Operations", "Chokepoint Analytics", "Dynamic Eco-Router"], label_visibility="collapsed")
     st.markdown("---")
     
-    # LETHAL PITCH CONTROL: DISRUPTION SIMULATOR & VOICE
     st.markdown("<div style='font-family: \"JetBrains Mono\"; font-size: 0.7rem; color: #64748B; margin-bottom: 12px;'>LETHAL PITCH CONTROLS</div>", unsafe_allow_html=True)
     simulate_anomaly = st.toggle("⚠️ Simulate Weather Anomaly", value=False)
     
     if simulate_anomaly:
         st.error("CRITICAL: Category 4 Typhoon in Bay of Bengal.")
-        
-        # O.M.E.G.A VOICE SYNTHESIS (Triggers automatically)
-        if not st.session_state.alarm_played:
-            components.html("""
-                <script>
-                    var msg = new SpeechSynthesisUtterance("Warning. Category 4 Typhoon detected in the Bay of Bengal. Autonomous eco-routing protocols have been engaged.");
-                    msg.volume = 1;
-                    msg.rate = 0.9;
-                    msg.pitch = 0.8;
-                    window.speechSynthesis.speak(msg);
-                </script>
-            """, height=0)
-            st.session_state.alarm_played = True
-            
-        # Inject massive red disruption data points right off the coast of India
         anomaly_lats = 13.0 + np.random.normal(0, 1.2, 800)
-        anomaly_lons = 85.0 + np.random.normal(0, 1.2, 800)
+        anomaly_lons = 82.0 + np.random.normal(0, 1.2, 800)
         anomaly_df = pd.DataFrame({
             'timestamp': pd.date_range(end=datetime.now(), periods=800, freq='1min'),
             'domain': 'TYPHOON_DISRUPTION',
@@ -155,12 +139,8 @@ with st.sidebar:
             'is_chokepoint': [True] * 800
         })
         data = pd.concat([data, anomaly_df], ignore_index=True)
-    else:
-        st.session_state.alarm_played = False
 
     st.markdown("---")
-    
-    # LETHAL PITCH CONTROL: AI COPILOT CHAT
     st.markdown("<div style='font-family: \"JetBrains Mono\"; font-size: 0.7rem; color: #3B82F6; margin-bottom: 12px;'>O.M.E.G.A. COPILOT</div>", unsafe_allow_html=True)
     
     chat_container = st.container(height=250)
@@ -209,8 +189,7 @@ if screen == "Fleet Operations":
     c_map, c_term = st.columns([7, 3])
     with c_map:
         st.markdown("<div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 12px;'>Spatial Density Elevators (3D Water Channels)</div>", unsafe_allow_html=True)
-        # Centers map slightly East of India to capture both India and SE Asia
-        s_lat, s_lon, zoom = (12.0, 85.0, 3.8) if simulate_anomaly else (15.0, 75.0, 2.8)
+        s_lat, s_lon, zoom = (13.0, 82.0, 4.2) if simulate_anomaly else (15.0, 75.0, 3.2)
         
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -218,14 +197,14 @@ if screen == "Fleet Operations":
             layers=[
                 pdk.Layer(
                     'HexagonLayer', data=data, get_position='[longitude, latitude]', 
-                    radius=35000, elevation_scale=65, elevation_range=[0, 3500], 
+                    radius=30000, elevation_scale=65, elevation_range=[0, 3500], 
                     pickable=True, extruded=True, get_fill_color="[16, 185, 129, 160]"
                 ),
                 pdk.Layer(
                     'ScatterplotLayer', data=data[data['is_chokepoint']], 
                     get_position='[longitude, latitude]', 
                     get_color='[239, 68, 68, 220]' if simulate_anomaly else '[245, 158, 11, 200]', 
-                    get_radius=45000, pickable=True
+                    get_radius=40000, pickable=True
                 )
             ],
             tooltip={"text": "Vessel Cluster Density"}
@@ -248,7 +227,6 @@ elif screen == "Chokepoint Analytics":
         </div>
     """, unsafe_allow_html=True)
     
-    # GEMINI AI BRIEFING BOX
     ai_status = "Category 4 Typhoon active in Bay of Bengal causing severe congestion." if simulate_anomaly else "System nominal. Normal global shipping loads."
     if GEMINI_AVAILABLE:
         try:
@@ -256,11 +234,26 @@ elif screen == "Chokepoint Analytics":
         except:
             briefing_text = f"🔊 **[SYSTEM FALLBACK]:** {ai_status} Malacca and Suez corridors experiencing stable queuing."
         box_text = f"🧠 **[O.M.E.G.A LIVE INFERENCE]:** {briefing_text}"
+        speech_text = briefing_text
     else:
+        speech_text = f"Warning. {ai_status} Malacca and Suez corridors experiencing stable queuing."
         box_text = f"🔊 **[SYSTEM BRIEFING]:** {ai_status} Malacca and Suez corridors experiencing stable queuing."
         
     box_style = "background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(15, 23, 42, 0.7) 100%); border: 1px solid rgba(239, 68, 68, 0.3);" if simulate_anomaly else "background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(15, 23, 42, 0.7) 100%); border: 1px solid rgba(59, 130, 246, 0.3);"
     st.markdown(f'<div style="{box_style} padding: 18px; border-radius: 12px; margin-bottom: 24px; font-family: \'JetBrains Mono\'; font-size: 0.85rem; color: #93C5FD; line-height: 1.5;">{box_text}</div>', unsafe_allow_html=True)
+    
+    # 🎙️ AUDIO BROADCAST BUTTON FOR THE PITCH
+    if st.button("🎙️ Broadcast AI Voice Briefing", type="secondary"):
+        components.html(f"""
+            <script>
+                var msg = new SpeechSynthesisUtterance("{speech_text}");
+                msg.volume = 1;
+                msg.rate = 0.95;
+                msg.pitch = 0.85;
+                window.speechSynthesis.speak(msg);
+            </script>
+        """, height=0)
+        st.toast("Broadcasting AI Executive Briefing...", icon="🔊")
     
     choke_df = data[data['is_chokepoint']]
     col_map, col_metrics = st.columns([2, 1])
@@ -269,7 +262,7 @@ elif screen == "Chokepoint Analytics":
         st.markdown("<div style='font-size: 1rem; font-weight: 600; margin-bottom: 8px;'>Global Vulnerability Heatmap</div>", unsafe_allow_html=True)
         st.pydeck_chart(pdk.Deck(
             map_style='https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', 
-            initial_view_state=pdk.ViewState(latitude=15.0, longitude=65.0, zoom=1.8, pitch=0), 
+            initial_view_state=pdk.ViewState(latitude=12.0, longitude=80.0, zoom=3.2, pitch=0), 
             layers=[pdk.Layer('HeatmapLayer', data=choke_df, get_position='[longitude, latitude]', radiusPixels=45, intensity=1.5, threshold=0.05)]
         ))
         
@@ -277,7 +270,6 @@ elif screen == "Chokepoint Analytics":
         st.markdown('<div class="glass-card"><div class="kpi-title">Average Wait Delay</div><div class="kpi-value" style="color: #F87171;">42.8 Hrs</div><p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Idle time caused by anchorage queuing.</p></div>', unsafe_allow_html=True)
         st.markdown('<div class="glass-card"><div class="kpi-title">Fuel Waste Coefficient</div><div class="kpi-value">18.4 MT/day</div><p style="font-size: 0.8rem; color: #94A3B8; margin-top: 8px;">Auxiliary power burned during holding patterns.</p></div>', unsafe_allow_html=True)
 
-    # ADDED CHARTS & TABLES
     st.markdown("<div style='font-size: 1.2rem; font-weight: 600; margin-top: 30px; margin-bottom: 15px;'>Corridor Disruption Index & Historical Breakdown</div>", unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["📊 Analytics Charts", "📋 Raw Telemetry Matrix"])
     with tab1:
@@ -299,7 +291,6 @@ elif screen == "Dynamic Eco-Router":
         </div>
     """, unsafe_allow_html=True)
     
-    # B2B PREDICTIVE SAVINGS CALCULATOR
     st.markdown("<h3 style='color: #10B981; font-size: 1.2rem; margin-bottom: 20px; margin-top: 10px;'>B2B Predictive Savings Calculator</h3>", unsafe_allow_html=True)
     calc_col1, calc_col2 = st.columns(2)
     with calc_col1: fleet_size = st.slider("Active Fleet Size (Vessels)", 5, 250, 45)
@@ -307,13 +298,12 @@ elif screen == "Dynamic Eco-Router":
         
     total_usd = (fleet_size * annual_voyages * 48000) / 1000000 
     total_co2 = fleet_size * annual_voyages * 278
-    carbon_rev = int(total_co2 * 25) # $25 per ton of CO2 offset
+    carbon_rev = int(total_co2 * 25)
     
     res_c1, res_c2 = st.columns(2)
     with res_c1: st.markdown(f'<div style="margin-top: 10px; margin-bottom: 20px;"><div class="kpi-title">Projected Annual Capital Saved</div><div class="kpi-value" style="font-size: 3rem; color: #10B981;">${total_usd:.1f}M</div></div>', unsafe_allow_html=True)
     with res_c2: st.markdown(f'<div style="margin-top: 10px; margin-bottom: 20px;"><div class="kpi-title">Projected SDG 13 CO2 Abatement</div><div class="kpi-value" style="font-size: 3rem;">{total_co2:,} Tons</div></div>', unsafe_allow_html=True)
 
-    # CARBON CREDIT ENGINE
     st.markdown(f"""
         <div class="glass-card glass-card-accent">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -336,7 +326,6 @@ elif screen == "Dynamic Eco-Router":
         <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">324 MT (-21.3%)</div></div>
         <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div></div></div>""", unsafe_allow_html=True)
 
-    # GENERATIVE ROUTE JUSTIFICATION
     if GEMINI_AVAILABLE:
         try:
             justification = gemini_model.generate_content("As an AI logistics commander, write a 3-sentence technical justification for why routing a ship on a 140 NM detour to avoid a storm saves 21% fuel compared to idling in a chokepoint.").text
