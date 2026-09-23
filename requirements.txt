@@ -1,6 +1,7 @@
-streamlit
-pandas
-numpy
-pydeck
-google-cloud-bigquery
-db-dtypes
+    streamlit
+    pandas
+    numpy
+    pydeck
+    google-cloud-bigquery
+    db-dtypes
+    google-generativeai
