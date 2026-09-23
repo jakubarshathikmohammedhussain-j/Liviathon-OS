@@ -350,7 +350,7 @@ elif screen == "Chokepoint Analytics":
         </div>
     """, unsafe_allow_html=True)
 
-    # VOICE / LIVE EXECUTIVE SUMMARY NARRATIVE (Changes live if anomaly toggle is switched)
+    # VOICE / LIVE EXECUTIVE SUMMARY NARRATIVE
     if simulate_anomaly:
         voice_text = "🔊 [LIVE AI VOICE BRIEFING]: ⚠️ Critical alert active! Category 4 Typhoon in South China Sea has spiked congestion density by 310%. Immediate diversion enforced across 42 active container vectors to prevent $2.1M in idle fuel burn."
     else:
@@ -396,7 +396,6 @@ elif screen == "Chokepoint Analytics":
             </div>
         """, unsafe_allow_html=True)
 
-    # ADD CHARTS & DATA TABLES ROW
     st.markdown("<div style='font-size: 1.2rem; font-weight: 600; margin-top: 30px; margin-bottom: 15px;'>Corridor Disruption Index & Historical Breakdown</div>", unsafe_allow_html=True)
     
     tab_chart, tab_table = st.tabs(["📊 Analytics Charts", "📋 Raw Telemetry Matrix"])
@@ -433,9 +432,7 @@ elif screen == "Dynamic Eco-Router":
         </div>
     """, unsafe_allow_html=True)
     
-    # B2B Predictive Savings Calculator
-    st.markdown("<div style='background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 25px; border-radius: 12px; margin-bottom: 30px;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: #10B981; font-size: 1.2rem; margin-bottom: 20px;'>B2B Predictive Savings Calculator</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #10B981; font-size: 1.2rem; margin-bottom: 20px; margin-top: 10px;'>B2B Predictive Savings Calculator</h3>", unsafe_allow_html=True)
     
     calc_col1, calc_col2 = st.columns(2)
     with calc_col1:
@@ -448,7 +445,7 @@ elif screen == "Dynamic Eco-Router":
     
     total_usd = (fleet_size * annual_voyages * savings_usd_per_voyage) / 1000000 
     total_co2 = fleet_size * annual_voyages * savings_co2_per_voyage
-    carbon_credit_revenue = total_co2 * 25 # $25 per ton of CO2 offset
+    carbon_credit_revenue = total_co2 * 25 
     
     res_c1, res_c2 = st.columns(2)
     with res_c1:
@@ -461,49 +458,4 @@ elif screen == "Dynamic Eco-Router":
     with res_c2:
         st.markdown(f"""
             <div style="margin-top: 20px;">
-                <div class="kpi-title">Projected SDG 13 CO2 Abatement</div>
-                <div class="kpi-value" style="font-size: 2.6rem;">{total_co2:,} Tons</div>
-            </div>
-        """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # NEW USEFUL FEATURE: CARBON CREDIT MONETIZATION SIMULATOR
-    st.markdown("""
-        <div class="glass-card glass-card-accent">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div class="kpi-title" style="color: #10B981;">New Feature: Carbon Credit Monetization Engine</div>
-                    <div style="font-size: 1.2rem; font-weight: 700; color: #F8FAFC; margin-top: 4px;">
-                        Estimated Carbon Offset Revenue: <span style="color: #10B981;">${:,} USD / yr</span> (at $25/Ton)
-                    </div>
-                </div>
-                <div class="kpi-badge badge-green">ESG Revenue Stream</div>
-            </div>
-        </div>
-    """.format(int(carbon_credit_revenue)), unsafe_allow_html=True)
-
-    st.markdown("<h3 style='font-size: 1.1rem; color: #94A3B8; margin-top: 25px; margin-bottom: 15px;'>Per-Voyage Bypass Metrics</h3>", unsafe_allow_html=True)
-    r1, r2 = st.columns(2)
-    with r1:
-        st.markdown("""
-            <div class="glass-card" style="border-top: 4px solid #EF4444;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <span style="font-weight: 700; font-size: 1.1rem; color: #F87171;">Standard Route (Legacy AIS)</span>
-                </div>
-                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div><div style="font-size: 1.4rem; font-weight: 700; color: #F87171;">+38.5 Hours</div></div>
-                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700;">412 MT</div></div>
-                <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #F87171;">1,298 Tons CO2</div></div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    with r2:
-        st.markdown("""
-            <div class="glass-card glass-card-accent" style="border-top: 4px solid #10B981;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <span style="font-weight: 700; font-size: 1.1rem; color: #10B981;">LEVIATHAN Dynamic Bypass</span>
-                </div>
-                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">CONGESTION DELAY EXPOSURE</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">0.0 Hours (Direct Transit)</div></div>
-                <div style="margin-bottom: 14px;"><div style="font-size: 0.8rem; color: #64748B;">ESTIMATED FUEL BURN</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">324 MT (-21.3%)</div></div>
-                <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div></div>
-            </div>
-        """, unsafe_allow_html=True)     
+         
