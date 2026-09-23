@@ -23,6 +23,7 @@ if "alarm_played" not in st.session_state:
 
 # Configure Gemini safely
 GEMINI_AVAILABLE = False
+gemini_model = None
 try:
     import google.generativeai as genai
     if "GEMINI_API_KEY" in st.secrets:
@@ -288,18 +289,25 @@ with st.sidebar:
             
         with chat_container.chat_message("assistant"):
             response = ""
-            if GEMINI_AVAILABLE:
+            p_lower = prompt.lower()
+            if GEMINI_AVAILABLE and gemini_model:
                 sys_prompt = f"You are O.M.E.G.A., the AI core of LEVIATHAN OS. Current simulation status: {scenario}. Answer concisely in 2 sentences. User query: {prompt}"
                 try:
                     response = gemini_model.generate_content(sys_prompt).text
                 except Exception:
-                    response = None
+                    response = ""
             
             if not response:
-                if "cost" in prompt.lower() or "financial" in prompt.lower() or "saving" in prompt.lower():
+                if "financial" in p_lower or "cost" in p_lower or "saving" in p_lower or "money" in p_lower:
                     response = f"Under [{scenario}], LEVIATHAN OS bypasses static anchorage queues, saving $48,000 per voyage and reducing auxiliary fuel burn by 21%."
-                elif "malacca" in prompt.lower() or "suez" in prompt.lower():
-                    response = f"Active telemetry indicates severe bottleneck friction in this corridor. Autonomous rerouting protocols have been successfully dispatched."
+                elif "malacca" in p_lower or "chokepoint" in p_lower or "congestion" in p_lower:
+                    response = f"Active telemetry indicates severe bottleneck friction in the Malacca corridor. Autonomous rerouting protocols have been successfully dispatched."
+                elif "sdg" in p_lower or "carbon" in p_lower or "co2" in p_lower or "emission" in p_lower:
+                    response = f"LEVIATHAN OS directly achieves SDG 13 climate compliance by cutting 278 tons of CO2 per voyage and enabling verifiable carbon offset monetization."
+                elif "fuel" in p_lower or "auxiliary" in p_lower:
+                    response = f"Vessels idling in queues burn 20 MT of auxiliary fuel daily. Our dynamic eco-router eliminates holding patterns, saving 3,420 MT daily across monitored fleets."
+                elif "bay of bengal" in p_lower or "chennai" in p_lower or "india" in p_lower:
+                    response = f"The Bay of Bengal regional hub tracks high-density feeder traffic, providing real-time telemetry crucial for avoiding regional weather anomalies."
                 else:
                     response = f"O.M.E.G.A. Core analysis active under [{scenario}]. Fleet telemetry nominal, SDG 13 emission targets maintained."
             
@@ -376,10 +384,10 @@ elif screen == "Chokepoint Analytics":
     
     ai_status = f"Active Scenario: {scenario}. Real-time telemetry adjusting queue profiles."
     briefing_text = ""
-    if GEMINI_AVAILABLE:
+    if GEMINI_AVAILABLE and gemini_model:
         try:
             briefing_text = gemini_model.generate_content(f"Write a 2-sentence executive briefing for logistics managers under scenario: {scenario}. Tone: Cold, analytical.").text
-        except:
+        except Exception:
              briefing_text = ""
              
     if not briefing_text:
@@ -485,10 +493,10 @@ elif screen == "Dynamic Eco-Router":
         <div><div style="font-size: 0.8rem; color: #64748B;">CARBON FOOTPRINT</div><div style="font-size: 1.4rem; font-weight: 700; color: #10B981;">1,020 Tons CO2 (-278 Tons)</div></div></div>""", unsafe_allow_html=True)
 
     justification = ""
-    if GEMINI_AVAILABLE:
+    if GEMINI_AVAILABLE and gemini_model:
         try:
             justification = gemini_model.generate_content(f"As an AI logistics commander, write a 3-sentence technical justification for why routing a ship on a detour under scenario '{scenario}' saves fuel compared to idling.").text
-        except:
+        except Exception:
              justification = ""
              
     if not justification:
